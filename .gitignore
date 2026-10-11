@@ -1,0 +1,12 @@
+# Build output
+build/
+bin/
+*.o
+*.a
+*.so
+
+# IDE / Editor files
+.vscode/
+.cache/
+compile_commands.json
+
