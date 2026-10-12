@@ -3,20 +3,18 @@
 #include <string>
 #include <unordered_map>
 
-using namespace std;
-
-class HttpResponse{
-    public:
+class HttpResponse {
+public:
     int status_code;
-    string status_text;
-    unordered_map<string, string> headers;
-    string body;
+    std::string status_text;
+    std::unordered_map<std::string, std::string> headers;
+    std::string body;
 
-    HttpResponse(int code = 200, const string& text = "OK");
+    HttpResponse(int code = 200, const std::string& text = "OK");
 
-    void set_header(const string& key, const string& value);
-    void set_body(const string& content, const string& content_type = "text/plain");
+    void set_header(const std::string& key, const std::string& value);
+    void set_body(const std::string& content, const std::string& content_type = "text/plain");
 
-    //serialize response object to valid HTTP wire format
-    string to_string() const;
+    // Serialize response object to valid HTTP wire format
+    std::string to_string() const;
 };

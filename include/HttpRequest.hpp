@@ -3,16 +3,14 @@
 #include <string>
 #include <unordered_map>
 
-using namespace std;
-
 class HttpRequest {
 public:
-    string method;
-    string path;
-    string version;
-    unordered_map<string, string> headers;
-    string body;
+    std::string method;
+    std::string path;
+    std::string version;
+    std::unordered_map<std::string, std::string> headers;
+    std::string body;
 
     // Factory method: parses a raw HTTP request string
-    static HttpRequest parse(const string& raw_request);
+    static HttpRequest parse(const std::string& raw_request);
 };

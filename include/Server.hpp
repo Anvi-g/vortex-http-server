@@ -9,13 +9,12 @@ private:
     int port_;
     int server_fd_;
     bool is_running_;
-    std::string public_dir_; // <-- use std::string
+    std::string public_dir_;
 
     void init_socket();
     void handle_client(int client_fd);
 
 public:
-    // <-- use std::string here as well
     explicit Server(int port, const std::string& public_dir = "./public");
 
     ~Server();

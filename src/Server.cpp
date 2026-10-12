@@ -18,10 +18,14 @@
 
 
 using namespace std;
-namespace fs = std::filesystem; // <-- Namespace alias
+namespace fs = std::filesystem;
 
-
-Server::Server(int port, const string& public_dir) : port_(port), server_fd_(-1), is_running_(false), public_dir_(public_dir) {}
+Server::Server(int port, const string& public_dir) 
+    : port_(port), server_fd_(-1), is_running_(false), public_dir_(public_dir) {
+    if (!fs::exists(public_dir_) && fs::exists("../" + public_dir_)) {
+        public_dir_ = "../" + public_dir_;
+    }
+}
 
 
 Server::~Server(){ stop(); }
@@ -127,8 +131,8 @@ void Server::handle_client(int client_fd){
                 req_path = "/index.html";
             }
             // construct filesystem path
-            filesystem::path base_path = filesystem::absolute(public_dir_);
-            filesystem::path full_path = filesystem::absolute(base_path.string() + req_path);
+            fs::path base_path = fs::absolute(public_dir_);
+            fs::path full_path = fs::absolute(base_path.string() + req_path);
 
             // path traversal prevention
             // ensure full_path starts with base_path
@@ -140,7 +144,7 @@ void Server::handle_client(int client_fd){
                 response.set_body("<h1>403 Forbidden: Path Traversal Detected</h1>\n", "text/html");
             }
             // check if file exists and is a regular file
-            else if (!filesystem::exists(full_path) || !filesystem::is_regular_file(full_path)) {
+            else if (!fs::exists(full_path) || !fs::is_regular_file(full_path)) {
                 response = HttpResponse(404, "Not Found");
                 response.set_body("<h1>404 Not Found</h1>\n", "text/html");
             }
