@@ -1,4 +1,7 @@
 #include "Server.hpp"
+#include "HttpRequest.hpp"
+#include "HttpResponse.hpp"
+
 #include <iostream>
 #include <cstring>
 #include <string>
@@ -79,23 +82,40 @@ void Server::handle_client(int client_fd){
     const int BUFFER_SIZE = 4096;
     char buffer[BUFFER_SIZE];
 
-
     // read request
     ssize_t bytes_recieved = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
     if(bytes_recieved > 0){
         buffer[bytes_recieved] = '\0';
-        cout << "[Vortex] Request from client:\n" << buffer << "\n";
 
-        // valid HTTP/1.1 response with proper headers
-        string body = "<h1>Hello from Vortex HTTP Server!</h1>\n";
-        string response = 
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html; charset=UTF-8\r\n"
-            "Content-Length: " + to_string(body.size()) + "\r\n"
-            "Connection: close\r\n"
-            "\r\n" + 
-            body;
-        send(client_fd, response.c_str(), response.size(), 0);
+        // parse request
+        HttpRequest request = HttpRequest::parse(buffer);
+        cout << "[Vortex] " << request.method << " " << request.path << "\n";
+
+        HttpResponse response;
+
+        // reject unsupported methods
+        if(request.method != "GET"){
+            response = HttpResponse(405, "Method Not Allowed");
+            response.set_body("405 Method Not Allowed\n", "text/plain");
+        }
+        // dynamic routing
+        else if(request.path == "/"){
+            response = HttpResponse(200, "OK");
+            response.set_body("<h1>Hello from Vortex HTTP Server!</h1>\n", "text/html");
+        }
+        else if(request.path == "/health"){
+            response = HttpResponse(200, "OK");
+            response.set_body("{\"status\":\"healthy\",\"uptime\":\"ok\"}\n", "application/json");
+        }
+        else {
+            // Path not found
+            response = HttpResponse(404, "Not Found");
+            response.set_body("<h1>404 Not Found</h1>\n", "text/html");
+        }
+
+        // send serialise response
+        string response_str = response.to_string();
+        send(client_fd, response_str.c_str(), response_str.size(), 0);
     }
     close(client_fd);    
 }
