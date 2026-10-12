@@ -137,11 +137,3 @@ curl -i --path-as-is http://localhost:8080/../../../../etc/passwd
 - [ ] **`epoll` / Non-blocking I/O:** Transition from blocking I/O to Linux `epoll` event-driven architecture for C10K connection scalability.
 - [ ] **HTTP Keep-Alive:** Support persistent TCP connections across multiple request/response cycles.
 
----
-
-## 💼 Resume Bullet Points
-
-* **Multithreaded HTTP Web Server | C++, POSIX Sockets, Linux, Multithreading**
-  * Engineered a custom web server from scratch using modern C++17 and POSIX sockets to process concurrent HTTP requests without framework abstractions.
-  * Implemented a thread-per-connection architecture using the C++ standard thread library (`std::thread`) to prevent I/O blocking and ensure sub-millisecond concurrent request throughput.
-  * Parsed raw HTTP/1.1 wire requests and structured HTTP 200/403/404/405 response headers to serve local binary assets with dynamic MIME-type resolution and directory traversal security.
