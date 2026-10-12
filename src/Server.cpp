@@ -1,7 +1,7 @@
 #include "Server.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
-#include "MimeTypes.hpp"    // <-- Added
+#include "MimeTypes.hpp"    
 
 #include <iostream>
 #include <cstring>
@@ -11,8 +11,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdexcept>
-#include <fstream>          // <-- Added for std::ifstream
-#include <filesystem>       // <-- Added for std::filesystem
+#include <fstream>
+#include <filesystem>
+#include <thread>
+#include <chrono>
+
 
 using namespace std;
 namespace fs = std::filesystem; // <-- Namespace alias
@@ -79,8 +82,9 @@ void Server::start(){
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
         cout << "[Vortex] Connection accepted from : " << client_ip << ":" << ntohs(client_addr.sin_port) << "\n";
-        // handle client request
-        handle_client(client_fd);
+
+        // handle client request (asynchronous)
+        std::thread(&Server::handle_client, this, client_fd).detach();
     }
 }
 
@@ -107,6 +111,14 @@ void Server::handle_client(int client_fd){
         else if(request.path == "/health"){
             response = HttpResponse(200, "OK");
             response.set_body("{\"status\":\"healthy\",\"uptime\":\"ok\"}\n", "application/json");
+        }
+        // simulated heavy / slow operation
+        else if (request.path == "/slow") {
+            cout << "[Vortex] Simulating 5-second long-running request on Thread " 
+              << this_thread::get_id() << "...\n";
+            this_thread::sleep_for(chrono::seconds(5));
+            response = HttpResponse(200, "OK");
+            response.set_body("<h1>Finished slow operation!</h1>\n", "text/html");
         }
         else {
               // resolve requested path (default '/' to '/index.html')
