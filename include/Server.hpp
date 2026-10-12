@@ -1,18 +1,20 @@
-#pragma once //prevents multiple file compilations
+#pragma once
 #include <string> 
 #include <cstdint>
 
-class Server{
-    private:
+class Server {
+private:
     int port_;
     int server_fd_;
     bool is_running_;
+    std::string public_dir_; // <-- use std::string
 
     void init_socket();
     void handle_client(int client_fd);
 
-    public:
-    explicit Server(int port);
+public:
+    // <-- use std::string here as well
+    explicit Server(int port, const std::string& public_dir = "./public");
 
     ~Server();
 

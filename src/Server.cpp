@@ -1,6 +1,7 @@
 #include "Server.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
+#include "MimeTypes.hpp"    // <-- Added
 
 #include <iostream>
 #include <cstring>
@@ -10,10 +11,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdexcept>
+#include <fstream>          // <-- Added for std::ifstream
+#include <filesystem>       // <-- Added for std::filesystem
 
 using namespace std;
+namespace fs = std::filesystem; // <-- Namespace alias
 
-Server::Server(int port) : port_(port), server_fd_(-1), is_running_(false){}
+
+Server::Server(int port, const string& public_dir) : port_(port), server_fd_(-1), is_running_(false), public_dir_(public_dir) {}
+
 
 Server::~Server(){ stop(); }
 
@@ -98,20 +104,52 @@ void Server::handle_client(int client_fd){
             response = HttpResponse(405, "Method Not Allowed");
             response.set_body("405 Method Not Allowed\n", "text/plain");
         }
-        // dynamic routing
-        else if(request.path == "/"){
-            response = HttpResponse(200, "OK");
-            response.set_body("<h1>Hello from Vortex HTTP Server!</h1>\n", "text/html");
-        }
         else if(request.path == "/health"){
             response = HttpResponse(200, "OK");
             response.set_body("{\"status\":\"healthy\",\"uptime\":\"ok\"}\n", "application/json");
         }
         else {
-            // Path not found
-            response = HttpResponse(404, "Not Found");
-            response.set_body("<h1>404 Not Found</h1>\n", "text/html");
+              // resolve requested path (default '/' to '/index.html')
+            string req_path = request.path;
+            if (req_path == "/") {
+                req_path = "/index.html";
+            }
+            // construct filesystem path
+            filesystem::path base_path = filesystem::absolute(public_dir_);
+            filesystem::path full_path = filesystem::absolute(base_path.string() + req_path);
+
+            // path traversal prevention
+            // ensure full_path starts with base_path
+            string canonical_base = base_path.lexically_normal().string();
+            string canonical_full = full_path.lexically_normal().string();
+            if (canonical_full.rfind(canonical_base, 0) != 0) {
+                // path traversal detected!
+                response = HttpResponse(403, "Forbidden");
+                response.set_body("<h1>403 Forbidden: Path Traversal Detected</h1>\n", "text/html");
+            }
+            // check if file exists and is a regular file
+            else if (!filesystem::exists(full_path) || !filesystem::is_regular_file(full_path)) {
+                response = HttpResponse(404, "Not Found");
+                response.set_body("<h1>404 Not Found</h1>\n", "text/html");
+            }
+            // read binary file from disk
+            else {
+                ifstream file(full_path, ios::binary);
+                if (file) {
+                    string file_content(
+                        (istreambuf_iterator<char>(file)),
+                        std::istreambuf_iterator<char>()
+                    );
+                    std::string mime_type = MimeTypes::get_mime_type(full_path.string());
+                    response = HttpResponse(200, "OK");
+                    response.set_body(file_content, mime_type);
+                } else {
+                    response = HttpResponse(500, "Internal Server Error");
+                    response.set_body("500 Internal Server Error\n", "text/plain");
+                }
+            }
         }
+
 
         // send serialise response
         string response_str = response.to_string();
