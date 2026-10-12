@@ -12,7 +12,7 @@ A lightweight, high-performance HTTP/1.1 server built in modern C++17 from scrat
 ## Project Roadmap
 
 - [x] **Phase 1: RAII TCP Server**: Socket initialization, connection accept loop, and basic HTTP response.
-- [ ] **Phase 2: HTTP Parser**: Robust HTTP request parsing (method, path, headers, query parameters).
+- [x] **Phase 2: HTTP Parser & Routing**: Request parsing (method, path, version, headers), structured response serializer, and dynamic endpoint routing.
 - [ ] **Phase 3: Static File Serving**: Serving HTML, CSS, JS, and media files with MIME-type handling.
 - [ ] **Phase 4: Multithreading & Concurrency**: Thread pool architecture for concurrent client handling.
 - [ ] **Phase 5: Performance & Benchmarking**: Keep-alive connection management and load testing.
@@ -45,5 +45,15 @@ The server starts by default on port `8080`.
 In another terminal:
 
 ```bash
-curl -i http://localhost:8080
+# Root endpoint (HTML)
+curl -i http://localhost:8080/
+
+# Health check (JSON)
+curl -i http://localhost:8080/health
+
+# Not found (404)
+curl -i http://localhost:8080/unknown
+
+# Method not allowed (405)
+curl -i -X POST http://localhost:8080/
 ```
