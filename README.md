@@ -1,6 +1,6 @@
 # ⚡ Vortex HTTP Server
 
-A high-performance, multithreaded HTTP/1.1 web server engineered from scratch in modern **C++17** using low-level **Linux POSIX sockets** and a **thread-per-connection** concurrency model, completely free of third-party web frameworks or abstractions.
+A high-performance, multithreaded HTTP/1.1 web server engineered from scratch in modern **C++17** using low-level **Linux POSIX sockets** and a **thread-per-connection** concurrency model, completely free of third-party web frameworks.
 
 ![C++17](https://img.shields.io/badge/Language-C%2B%2B17-blue.svg)
 ![POSIX](https://img.shields.io/badge/Networking-POSIX%20Sockets-orange.svg)
@@ -12,53 +12,57 @@ A high-performance, multithreaded HTTP/1.1 web server engineered from scratch in
 
 ## 🎯 Features
 
-* **Zero-Framework POSIX Networking:** Implements raw Berkeley socket primitives (`socket`, `setsockopt`, `bind`, `listen`, `accept`, `recv`, `send`) with `SO_REUSEADDR` port recycling and RAII socket lifecycle management.
-* **Thread-per-Connection Concurrency:** Non-blocking request handling utilizing `std::thread` with detached worker lifecycles (`thread.detach()`), ensuring slow client connections never block the accept loop.
-* **HTTP/1.1 Protocol Engine:** RFC 7230 compliant parsing of request methods (`GET`, `POST`), URI paths, headers, and formatted HTTP responses (`200 OK`, `403 Forbidden`, `404 Not Found`, `405 Method Not Allowed`).
-* **Binary File I/O & Dynamic MIME Resolution:** Binary-mode file streaming (`std::ios::binary`) supporting HTML, CSS, JS, images (PNG, JPEG, SVG), and dynamic file-extension-to-MIME-type mapping.
-* **Path Traversal Security Defense:** Canonical lexical path validation via `std::filesystem` preventing directory traversal (`../`) attacks targeting arbitrary system files.
+* **Zero-Framework POSIX Networking:** Direct Berkeley socket lifecycle (`socket`, `setsockopt`, `bind`, `listen`, `accept`, `recv`, `send`) with `SO_REUSEADDR` port recycling and RAII resource management.
+* **Thread-per-Connection Concurrency:** Non-blocking connection dispatcher using `std::thread` and detached worker lifecycles (`thread.detach()`), ensuring heavy or delayed requests never block incoming client traffic.
+* **HTTP/1.1 Protocol Engine:** RFC 7230 compliant parsing of request methods (`GET`, `POST`), URI routing, headers, and formatted HTTP responses (`200 OK`, `403 Forbidden`, `404 Not Found`, `405 Method Not Allowed`).
+* **Binary File I/O & Dynamic MIME Resolution:** Binary-mode file streaming (`std::ios::binary`) supporting HTML, CSS, JavaScript, and binary images with dynamic file extension mapping.
+* **Path Traversal Security Defense:** Canonical lexical path validation via `std::filesystem` preventing directory traversal (`../`) attacks targeting arbitrary host files.
 
 ---
 
 ## 🏛️ Architecture
 
 ```mermaid
-flowchart TD
-    Client[Incoming Client Connections] --> Kernel[Linux Kernel TCP Backlog]
-    Kernel --> MainThread[Main Thread: Server::start Loop]
-    MainThread -->|accept client_fd| Spawn[Spawn Worker std::thread]
-    Spawn -->|thread.detach| Worker[Worker Thread]
-    MainThread -->|Immediate Return| MainThread
+flowchart LR
+    Client([Client]) -->|TCP SYN| Backlog[Kernel TCP Backlog]
+    Backlog -->|accept| Main[Main Thread<br/>Accept Loop]
+    Main -->|std::thread::detach| Worker[Worker Thread]
+    Main -.->|non-blocking loop| Backlog
 
-    subgraph WorkerExecution [Independent Worker Execution]
-        Worker --> Recv[recv raw bytes]
-        Recv --> Parser[HttpRequest::parse]
-        Parser --> Router{Route Request}
-        Router -->|/slow| Slow[Simulate 5s Task]
-        Router -->|/health| Health[JSON Health Response]
-        Router -->|Static File| Security{Path Traversal Check}
-        Security -->|Violated| Res403[403 Forbidden]
-        Security -->|File Missing| Res404[404 Not Found]
-        Security -->|Valid File| FileReader[Read Binary std::ifstream]
-        FileReader --> Mime[Resolve MIME Type]
-        Mime --> Res200[200 OK with Payload]
+    subgraph Pipeline [Worker Request Pipeline]
+        Worker --> Parse[HttpRequest::parse]
+        Parse --> Route{Router}
+        
+        Route -->|Static File| Security{Path Check}
+        Security -->|Valid| Disk[(Binary Disk I/O)]
+        Security -->|Traversal| Res403[403 Forbidden]
+        Disk --> Res200[200 OK + MIME]
+        
+        Route -->|/health| ResJSON[200 OK JSON]
+        Route -->|/slow| Slow[5s Delay Task]
+        Route -->|Other| Res404[404 Not Found]
+        Route -->|POST| Res405[405 Not Allowed]
         Slow --> Res200
-        Health --> Res200
-        Res200 --> Send[send to client_fd]
-        Res403 --> Send
-        Res404 --> Send
-        Send --> Close[close client_fd]
     end
+
+    Res200 --> Send[send to client_fd]
+    ResJSON --> Send
+    Res403 --> Send
+    Res404 --> Send
+    Res405 --> Send
+    Send --> Close([close socket])
 ```
 
 ---
 
-## 🗺️ Project Roadmap
+## 🧩 Core Modules
 
-- [x] **Phase 1: RAII TCP Server**: Socket initialization, connection accept loop, and clean C++ RAII resource encapsulation.
-- [x] **Phase 2: HTTP Parser & Dynamic Routing**: Request parsing (method, path, headers), structured response serialization, and routing (`/`, `/health`, 404, 405).
-- [x] **Phase 3: Static File Serving & Security**: Binary disk streaming from `./public`, dynamic MIME mapping, and directory traversal security (`403 Forbidden`).
-- [x] **Phase 4: Thread-per-Connection Concurrency**: Multithreaded request handling using `std::thread` preventing I/O starvation.
+| Module | Location | Responsibility |
+| :--- | :--- | :--- |
+| **`Server`** | `include/Server.hpp`, `src/Server.cpp` | Manages the socket lifecycle, accepts connections, and dispatches worker threads. |
+| **`HttpRequest`** | `include/HttpRequest.hpp`, `src/HttpRequest.cpp` | Parses raw socket buffers into structured method, path, version, and headers. |
+| **`HttpResponse`** | `include/HttpResponse.hpp`, `src/HttpResponse.cpp` | Constructs and serializes RFC-compliant HTTP status lines, headers, and payloads. |
+| **`MimeTypes`** | `include/MimeTypes.hpp`, `src/MimeTypes.cpp` | Maps file extensions (`.html`, `.css`, `.png`, `.js`) to standard MIME types. |
 
 ---
 
@@ -89,15 +93,15 @@ The server listens by default on port `8080` and serves static assets from `./pu
 ### 1. Web Browser
 Navigate to `http://localhost:8080/` to view the styled HTML/CSS dashboard.
 
-### 2. Endpoints & MIME Testing
+### 2. Endpoints & MIME Resolution
 ```bash
 # Static HTML
 curl -i http://localhost:8080/
 
-# Static CSS Stylesheet with MIME detection
+# Static CSS stylesheet with MIME detection
 curl -i http://localhost:8080/style.css
 
-# JSON Health Check
+# JSON health check
 curl -i http://localhost:8080/health
 
 # 405 Method Not Allowed
@@ -107,8 +111,8 @@ curl -i -X POST http://localhost:8080/
 curl -i http://localhost:8080/unknown
 ```
 
-### 3. Concurrency Acid Test
-Simulate a long-running client and verify non-blocking execution:
+### 3. Concurrency Test
+Simulate a slow client and verify non-blocking execution:
 ```bash
 # Terminal 1: Starts a 5-second simulated heavy request
 curl -i http://localhost:8080/slow
@@ -116,7 +120,7 @@ curl -i http://localhost:8080/slow
 # Terminal 2: Run simultaneously in a separate terminal
 curl -i http://localhost:8080/
 ```
-*Result:* Terminal 2 returns the homepage instantly in sub-milliseconds without waiting for Terminal 1 to finish.
+*Result:* Terminal 2 returns the homepage instantly in sub-milliseconds without waiting for Terminal 1.
 
 ### 4. Path Traversal Security Test
 *Note: Pass `--path-as-is` so curl does not normalize dots before transmitting over the wire:*
@@ -124,6 +128,14 @@ curl -i http://localhost:8080/
 curl -i --path-as-is http://localhost:8080/../../../../etc/passwd
 ```
 *Result:* `HTTP/1.1 403 Forbidden: Path Traversal Detected`
+
+---
+
+## 🔮 Future Enhancements
+
+- [ ] **Thread Pool Architecture:** Replace thread-per-connection with a fixed worker thread pool to eliminate thread creation overhead under massive load.
+- [ ] **`epoll` / Non-blocking I/O:** Transition from blocking I/O to Linux `epoll` event-driven architecture for C10K connection scalability.
+- [ ] **HTTP Keep-Alive:** Support persistent TCP connections across multiple request/response cycles.
 
 ---
 
